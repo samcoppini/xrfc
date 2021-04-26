@@ -1,0 +1,27 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: System Setup
+        run: |
+          sudo apt-get update
+          sudo apt-get install llvm-10*
+          sudo apt-get install ninja-build
+          sudo pip3 install setuptools
+          sudo pip3 install meson
+
+      - name: Build
+        run: |
+          meson build --prefix=$(pwd)/dist --buildtype=release
+          ninja -C build install
+
+      - name: Test
+        run: |
+          ninja -C build test
