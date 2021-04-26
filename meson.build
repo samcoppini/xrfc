@@ -22,9 +22,25 @@ xrf_deps = [
     llvm_dep,
 ]
 
+xrf_inc = include_directories('inc')
+
+xrf_lib = static_library(
+    'xrf-lib',
+    'src/file-reader.cpp',
+    'src/parser.cpp',
+    dependencies: xrf_deps,
+    include_directories: xrf_inc,
+)
+
+xrf_dep = declare_dependency(
+    dependencies: xrf_deps,
+    include_directories: xrf_inc,
+    link_with: xrf_lib,
+)
+
 xrfc = executable(
     'xrfc',
     'src/main.cpp',
-    dependencies: xrf_deps,
+    dependencies: xrf_dep,
     install: true,
 )
