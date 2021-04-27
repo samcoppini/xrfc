@@ -102,10 +102,61 @@ llvm::BasicBlock *createStackJump(llvm::LLVMContext &context, XrfContext &xrfCon
     return stackJump;
 }
 
+void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, llvm::Value *value) {
+    auto topValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    auto stackTop = builder.CreateLoad(
+        llvm::IntegerType::getInt64Ty(context),
+        xrfContext.stackTop
+    );
+
+    auto stackPointer = builder.CreateInBoundsGEP(
+        xrfContext.stack,
+        {
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+            stackTop
+        }
+    );
+
+    builder.CreateStore(topValue, stackPointer);
+
+    builder.CreateStore(value, xrfContext.topValue);
+
+    auto newStackTop = builder.CreateAdd(
+        stackTop,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    builder.CreateStore(newStackTop, xrfContext.stackTop);
+}
+
+void generateDup(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto topValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    emitPush(context, xrfContext, builder, topValue);
+}
+
 void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk,
                           llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump)
 {
     llvm::IRBuilder builder(chunkBlock);
+
+    for (size_t i = 0; i < chunk.commands.size(); i++) {
+        switch (chunk.commands[i]) {
+            case CommandType::Dup:
+                generateDup(context, xrfContext, builder);
+                break;
+
+            default:
+                break;
+        }
+    }
 
     builder.CreateBr(stackJump);
 }
