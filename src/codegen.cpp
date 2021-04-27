@@ -102,6 +102,20 @@ llvm::BasicBlock *createStackJump(llvm::LLVMContext &context, XrfContext &xrfCon
     return stackJump;
 }
 
+void emitAddConstant(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, int toAdd) {
+    auto topValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    auto newTopValue = builder.CreateAdd(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), toAdd),
+        topValue
+    );
+
+    builder.CreateStore(newTopValue, xrfContext.topValue);
+}
+
 void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, llvm::Value *value) {
     auto topValue = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -133,6 +147,10 @@ void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilde
     builder.CreateStore(newStackTop, xrfContext.stackTop);
 }
 
+void generateDec(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    emitAddConstant(context, xrfContext, builder, -1);
+}
+
 void generateDup(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto topValue = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -142,6 +160,10 @@ void generateDup(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     emitPush(context, xrfContext, builder, topValue);
 }
 
+void generateInc(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    emitAddConstant(context, xrfContext, builder, 1);
+}
+
 void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk,
                           llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump)
 {
@@ -149,8 +171,16 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
 
     for (size_t i = 0; i < chunk.commands.size(); i++) {
         switch (chunk.commands[i]) {
+            case CommandType::Dec:
+                generateDec(context, xrfContext, builder);
+                break;
+
             case CommandType::Dup:
                 generateDup(context, xrfContext, builder);
+                break;
+
+            case CommandType::Inc:
+                generateInc(context, xrfContext, builder);
                 break;
 
             default:
