@@ -1,6 +1,8 @@
+#include "codegen.hpp"
 #include "parser.hpp"
 
 #include "CLI/CLI.hpp"
+#include "llvm/Support/raw_ostream.h"
 
 #include <fstream>
 #include <iostream>
@@ -23,9 +25,11 @@ int main(int argc, char **argv) {
     CLI::App app("Compiles XRF files.");
 
     std::string filename;
+    std::string outFilename;
 
     app.add_option("file", filename, "The XRF file to compile.")
         ->required();
+    app.add_option("-o,--output", outFilename, "The file to write the compiled source to.");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -43,4 +47,23 @@ int main(int argc, char **argv) {
         printParserErrors(*errors);
         return 2;
     }
+
+    llvm::LLVMContext context;
+    auto &chunks = std::get<std::vector<xrf::Chunk>>(result);
+    auto module = generateCode(context, chunks);
+
+    if (outFilename.empty()) {
+        outFilename = "out.ll";
+    }
+
+    std::error_code err;
+    llvm::raw_fd_ostream outFile(outFilename, err);
+
+    if (err) {
+        std::cerr << "Unable to write to " << outFilename << '\n';
+        return 3;
+    }
+
+    module->print(outFile, nullptr);
+    return 0;
 }

@@ -4,7 +4,6 @@ project(
     default_options: [
         'cpp_std=c++17',
         'warning_level=3',
-        'werror=true',
     ],
     version: '0.0.1',
 )
@@ -26,6 +25,7 @@ xrf_inc = include_directories('inc')
 
 xrf_lib = static_library(
     'xrf-lib',
+    'src/codegen.cpp',
     'src/file-reader.cpp',
     'src/parser.cpp',
     dependencies: xrf_deps,
