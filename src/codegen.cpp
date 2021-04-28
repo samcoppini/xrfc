@@ -211,6 +211,23 @@ void generateInc(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     emitAddConstant(context, xrfContext, builder, 1);
 }
 
+void generateInput(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto inputChar = builder.CreateCall(xrfContext.getcharFunc);
+
+    auto isEof = builder.CreateICmpEQ(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), -1),
+        inputChar
+    );
+
+    auto correctedChar = builder.CreateSelect(
+        isEof,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+        inputChar
+    );
+
+    emitPush(context, xrfContext, builder, correctedChar);
+}
+
 void generateOutput(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto topValue = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -287,6 +304,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
 
             case CommandType::Inc:
                 generateInc(context, xrfContext, builder);
+                break;
+
+            case CommandType::Input:
+                generateInput(context, xrfContext, builder);
                 break;
 
             case CommandType::Jump:
