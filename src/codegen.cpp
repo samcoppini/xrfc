@@ -176,6 +176,24 @@ void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilde
     builder.CreateStore(newStackTop, xrfContext.stackTop);
 }
 
+void generateAdd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto oldTop = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    emitPop(context, xrfContext, builder);
+
+    auto newTop = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    auto sum = builder.CreateAdd(oldTop, newTop);
+
+    builder.CreateStore(sum, xrfContext.topValue);
+}
+
 void generateDec(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     emitAddConstant(context, xrfContext, builder, -1);
 }
@@ -245,6 +263,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
 
     for (size_t i = 0; i < chunk.commands.size(); i++) {
         switch (chunk.commands[i]) {
+            case CommandType::Add:
+                generateAdd(context, xrfContext, builder);
+                break;
+
             case CommandType::Dec:
                 generateDec(context, xrfContext, builder);
                 break;
