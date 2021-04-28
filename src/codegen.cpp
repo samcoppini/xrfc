@@ -275,9 +275,19 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generateDup(context, xrfContext, builder);
                 break;
 
+            case CommandType::Exit:
+                builder.CreateRet(
+                    llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0)
+                );
+                return;
+
             case CommandType::Inc:
                 generateInc(context, xrfContext, builder);
                 break;
+
+            case CommandType::Jump:
+                builder.CreateBr(stackJump);
+                return;
 
             case CommandType::Output:
                 generateOutput(context, xrfContext, builder);
