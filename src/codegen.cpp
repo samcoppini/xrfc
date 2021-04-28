@@ -222,6 +222,10 @@ void generateOutput(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IR
     emitPop(context, xrfContext, builder);
 }
 
+void generatePop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    emitPop(context, xrfContext, builder);
+}
+
 void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto stackTop = builder.CreateLoad(
         llvm::IntegerType::getInt64Ty(context),
@@ -291,6 +295,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
 
             case CommandType::Output:
                 generateOutput(context, xrfContext, builder);
+                break;
+
+            case CommandType::Pop:
+                generatePop(context, xrfContext, builder);
                 break;
 
             case CommandType::Swap:
