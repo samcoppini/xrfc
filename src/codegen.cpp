@@ -243,6 +243,30 @@ void generatePop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     emitPop(context, xrfContext, builder);
 }
 
+void generateSub(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto value1 = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    emitPop(context, xrfContext, builder);
+
+    auto value2 = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    auto sub1 = builder.CreateSub(value1, value2);
+
+    auto sub2 = builder.CreateSub(value2, value1);
+
+    auto value1IsGreater = builder.CreateICmpUGT(value1, value2);
+
+    auto selectedValue = builder.CreateSelect(value1IsGreater, sub1, sub2);
+
+    builder.CreateStore(selectedValue, xrfContext.topValue);
+}
+
 void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto stackTop = builder.CreateLoad(
         llvm::IntegerType::getInt64Ty(context),
@@ -320,6 +344,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
 
             case CommandType::Pop:
                 generatePop(context, xrfContext, builder);
+                break;
+
+            case CommandType::Sub:
+                generateSub(context, xrfContext, builder);
                 break;
 
             case CommandType::Swap:
