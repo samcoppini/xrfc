@@ -116,15 +116,61 @@ void emitAddConstant(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::I
     builder.CreateStore(newTopValue, xrfContext.topValue);
 }
 
+void emitBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, llvm::Value *value) {
+    auto stackBottom = builder.CreateLoad(
+        llvm::IntegerType::getInt64Ty(context),
+        xrfContext.stackBottom
+    );
+
+    auto stackPtr = builder.CreateInBoundsGEP(
+        xrfContext.stack,
+        {
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+            stackBottom
+        }
+    );
+
+    builder.CreateStore(value, stackPtr);
+
+    auto bottomMinusOne = builder.CreateSub(
+        stackBottom,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto bottomWrapped = builder.CreateICmpEQ(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0),
+        stackBottom
+    );
+
+    auto newBottom = builder.CreateSelect(
+        bottomWrapped,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
+        bottomMinusOne
+    );
+
+    builder.CreateStore(newBottom, xrfContext.stackBottom);
+}
+
 void emitPop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto stackTop = builder.CreateLoad(
         llvm::IntegerType::getInt64Ty(context),
         xrfContext.stackTop
     );
 
-    auto newTop = builder.CreateSub(
+    auto topMinusOne = builder.CreateSub(
         stackTop,
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto topWrapped = builder.CreateICmpEQ(
+        stackTop,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0)
+    );
+
+    auto newTop = builder.CreateSelect(
+        topWrapped,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
+        topMinusOne
     );
 
     auto stackPtr = builder.CreateInBoundsGEP(
@@ -168,9 +214,20 @@ void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilde
 
     builder.CreateStore(value, xrfContext.topValue);
 
-    auto newStackTop = builder.CreateAdd(
+    auto topPlusOne = builder.CreateAdd(
         stackTop,
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto topWrapped = builder.CreateICmpEQ(
+        topPlusOne,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE)
+    );
+
+    auto newStackTop = builder.CreateSelect(
+        topWrapped,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0),
+        topPlusOne
     );
 
     builder.CreateStore(newStackTop, xrfContext.stackTop);
@@ -192,6 +249,17 @@ void generateAdd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     auto sum = builder.CreateAdd(oldTop, newTop);
 
     builder.CreateStore(sum, xrfContext.topValue);
+}
+
+void generateBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto topValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        xrfContext.topValue
+    );
+
+    emitPop(context, xrfContext, builder);
+
+    emitBottom(context, xrfContext, builder, topValue);
 }
 
 void generateDec(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
@@ -273,16 +341,27 @@ void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBu
         xrfContext.stackTop
     );
 
-    auto stack2nd = builder.CreateSub(
+    auto topMinusOne = builder.CreateSub(
         stackTop,
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto topWrapped = builder.CreateICmpEQ(
+        stackTop,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0)
+    );
+
+    auto stack2ndIndex = builder.CreateSelect(
+        topWrapped,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
+        topMinusOne
     );
 
     auto stackIndex = builder.CreateInBoundsGEP(
         xrfContext.stack,
         {
             llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
-            stack2nd
+            stack2ndIndex
         }
     );
 
@@ -310,6 +389,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
         switch (chunk.commands[i]) {
             case CommandType::Add:
                 generateAdd(context, xrfContext, builder);
+                break;
+
+            case CommandType::Bottom:
+                generateBottom(context, xrfContext, builder);
                 break;
 
             case CommandType::Dec:
