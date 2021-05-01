@@ -13,6 +13,8 @@ namespace {
 constexpr int STACK_SIZE = 65536;
 
 struct XrfContext {
+    llvm::Module *module;
+
     llvm::GlobalVariable *stack;
 
     llvm::FunctionCallee getcharFunc;
@@ -30,8 +32,13 @@ struct XrfContext {
     llvm::AllocaInst *topValue;
 };
 
+void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk, size_t index,
+                          llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump, bool setVisited = false);
+
 XrfContext getGenerationContext(llvm::Module &module, llvm::LLVMContext &context) {
     XrfContext xrfContext;
+
+    xrfContext.module = &module;
 
     auto stackType = llvm::ArrayType::get(llvm::IntegerType::getInt32Ty(context), STACK_SIZE);
 
@@ -233,6 +240,22 @@ void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilde
     builder.CreateStore(newStackTop, xrfContext.stackTop);
 }
 
+llvm::GlobalVariable *emitVisited(llvm::Module &module, llvm::LLVMContext &context, int chunkIdx) {
+    auto visitedVarName = "visited-" + std::to_string(chunkIdx);
+
+    module.getOrInsertGlobal(
+        visitedVarName,
+        llvm::Type::getInt1Ty(context)
+    );
+
+    auto visited = module.getGlobalVariable(visitedVarName, true);
+
+    visited->setLinkage(llvm::GlobalValue::PrivateLinkage);
+    visited->setInitializer(llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 0));
+
+    return visited;
+}
+
 void generateAdd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto oldTop = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -380,8 +403,32 @@ void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBu
     builder.CreateStore(stack2ndValue, xrfContext.topValue);
 }
 
-void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk,
-                          llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump)
+void generateVisitJump(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, size_t index,
+                       llvm::BasicBlock *stackJump, const Chunk &visited, const Chunk &first)
+{
+    auto hasVisited = builder.CreateLoad(llvm::Type::getInt1Ty(context), emitVisited(*xrfContext.module, context, index));
+
+    auto firstBlock = llvm::BasicBlock::Create(context, "", xrfContext.mainFunc);
+    auto visitedBlock = llvm::BasicBlock::Create(context, "", xrfContext.mainFunc);
+
+    generateCodeForChunk(context, xrfContext, visited, index, visitedBlock, stackJump, false);
+    generateCodeForChunk(context, xrfContext, first, index, firstBlock, stackJump, true);
+
+    builder.CreateCondBr(hasVisited, visitedBlock, firstBlock);
+}
+
+Chunk chunkFromCommand(const Chunk &chunk, size_t firstIndex) {
+    Chunk shorterChunk;
+    shorterChunk.commands.insert(shorterChunk.commands.begin(),
+                                 chunk.commands.begin() + firstIndex,
+                                 chunk.commands.end());
+    shorterChunk.line = chunk.line;
+    shorterChunk.col = chunk.col + firstIndex;
+    return shorterChunk;
+}
+
+void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk, size_t index,
+                          llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump, bool setVisited)
 {
     llvm::IRBuilder builder(chunkBlock);
 
@@ -418,8 +465,9 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 break;
 
             case CommandType::Jump:
-                builder.CreateBr(stackJump);
-                return;
+                // Exit this loop
+                i = chunk.commands.size();
+                break;
 
             case CommandType::Output:
                 generateOutput(context, xrfContext, builder);
@@ -437,9 +485,34 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generateSwap(context, xrfContext, builder);
                 break;
 
+            case CommandType::IgnoreVisited:
+            case CommandType::IgnoreFirst: {
+                if (i == chunk.commands.size() - 1) {
+                    break;
+                }
+                auto nextChunk = chunkFromCommand(chunk, i + 1);
+                auto skipChunk = chunkFromCommand(chunk, i + 2);
+
+                if (chunk.commands[i] == CommandType::IgnoreVisited) {
+                    generateVisitJump(context, xrfContext, builder, index, stackJump, skipChunk, nextChunk);
+                }
+                else {
+                    generateVisitJump(context, xrfContext, builder, index, stackJump, nextChunk, skipChunk);
+                }
+
+                return;
+            }
+
             default:
                 break;
         }
+    }
+
+    if (setVisited) {
+        builder.CreateStore(
+            llvm::ConstantInt::get(llvm::Type::getInt1Ty(context), 1),
+            emitVisited(*xrfContext.module, context, index)
+        );
     }
 
     builder.CreateBr(stackJump);
@@ -457,7 +530,7 @@ void generateChunks(llvm::LLVMContext &context, XrfContext &xrfContext, const st
     auto *stackJump = createStackJump(context, xrfContext, chunkStarts);
 
     for (size_t i = 0; i < chunks.size(); i++) {
-        generateCodeForChunk(context, xrfContext, chunks[i], chunkStarts[i], stackJump);
+        generateCodeForChunk(context, xrfContext, chunks[i], i, chunkStarts[i], stackJump);
     }
 
     llvm::IRBuilder builder(xrfContext.startBlock);
