@@ -16,11 +16,6 @@ cli11_dep = cli11_proj.get_variable('CLI11_dep')
 
 llvm_dep = dependency('llvm', version: ['>=10'])
 
-xrf_deps = [
-    cli11_dep,
-    llvm_dep,
-]
-
 xrf_inc = include_directories('inc')
 
 xrf_lib = static_library(
@@ -29,12 +24,12 @@ xrf_lib = static_library(
     'src/file-reader.cpp',
     'src/optimization.cpp',
     'src/parser.cpp',
-    dependencies: xrf_deps,
+    dependencies: llvm_dep,
     include_directories: xrf_inc,
 )
 
 xrf_dep = declare_dependency(
-    dependencies: xrf_deps,
+    dependencies: llvm_dep,
     include_directories: xrf_inc,
     link_with: xrf_lib,
 )
@@ -42,6 +37,24 @@ xrf_dep = declare_dependency(
 xrfc = executable(
     'xrfc',
     'src/main.cpp',
-    dependencies: xrf_dep,
+    dependencies: [
+        cli11_dep,
+        xrf_dep,
+    ],
     install: true,
+)
+
+xrf_test_exe = executable(
+    'xrf_test',
+    'test/parser-test.cpp',
+    'test/test-main.cpp',
+    dependencies: [
+        catch2_dep,
+        xrf_dep,
+    ],
+)
+
+test(
+    'xrfc_tests',
+    xrf_test_exe,
 )

@@ -19,7 +19,7 @@ std::optional<char> FileReader::read() {
 
     if (c == '\n') {
         _line++;
-        _col = 1;
+        _col = 0;
     }
     else {
         _col++;

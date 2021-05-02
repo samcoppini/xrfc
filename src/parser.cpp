@@ -30,7 +30,7 @@ void parseChunk(FileReader &file, char chunkChar, std::vector<Chunk> &chunks, Pa
             case 'E': chunk.commands.push_back(CommandType::Sub); break;
             case 'F': chunk.commands.push_back(CommandType::Nop); break;
             default:
-                errors.emplace_back("Invalid command character: "s + *c, file.curLine(), file.curColumn());
+                errors.emplace_back("Found invalid command character: "s + *c, file.curLine(), file.curColumn());
                 break;
         }
     }
