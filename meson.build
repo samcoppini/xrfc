@@ -27,6 +27,7 @@ xrf_lib = static_library(
     'xrf-lib',
     'src/codegen.cpp',
     'src/file-reader.cpp',
+    'src/optimization.cpp',
     'src/parser.cpp',
     dependencies: xrf_deps,
     include_directories: xrf_inc,

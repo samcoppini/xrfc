@@ -33,7 +33,8 @@ struct XrfContext {
 };
 
 void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk, size_t index,
-                          llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump, bool setVisited = false);
+                          llvm::BasicBlock *chunkBlock, std::vector<llvm::BasicBlock*> chunks, llvm::BasicBlock *stackJump,
+                          bool setVisited = false);
 
 XrfContext getGenerationContext(llvm::Module &module, llvm::LLVMContext &context) {
     XrfContext xrfContext;
@@ -404,15 +405,15 @@ void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBu
 }
 
 void generateVisitJump(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, size_t index,
-                       llvm::BasicBlock *stackJump, const Chunk &visited, const Chunk &first)
+                       std::vector<llvm::BasicBlock*> chunks, llvm::BasicBlock *stackJump, const Chunk &visited, const Chunk &first)
 {
     auto hasVisited = builder.CreateLoad(llvm::Type::getInt1Ty(context), emitVisited(*xrfContext.module, context, index));
 
     auto firstBlock = llvm::BasicBlock::Create(context, "", xrfContext.mainFunc);
     auto visitedBlock = llvm::BasicBlock::Create(context, "", xrfContext.mainFunc);
 
-    generateCodeForChunk(context, xrfContext, visited, index, visitedBlock, stackJump, false);
-    generateCodeForChunk(context, xrfContext, first, index, firstBlock, stackJump, true);
+    generateCodeForChunk(context, xrfContext, visited, index, visitedBlock, chunks, stackJump, false);
+    generateCodeForChunk(context, xrfContext, first, index, firstBlock, chunks, stackJump, true);
 
     builder.CreateCondBr(hasVisited, visitedBlock, firstBlock);
 }
@@ -428,7 +429,8 @@ Chunk chunkFromCommand(const Chunk &chunk, size_t firstIndex) {
 }
 
 void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, const Chunk &chunk, size_t index,
-                          llvm::BasicBlock *chunkBlock, llvm::BasicBlock *stackJump, bool setVisited)
+                          llvm::BasicBlock *chunkBlock, std::vector<llvm::BasicBlock*> chunks, llvm::BasicBlock *stackJump,
+                          bool setVisited)
 {
     llvm::IRBuilder builder(chunkBlock);
 
@@ -494,10 +496,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 auto skipChunk = chunkFromCommand(chunk, i + 2);
 
                 if (chunk.commands[i] == CommandType::IgnoreVisited) {
-                    generateVisitJump(context, xrfContext, builder, index, stackJump, skipChunk, nextChunk);
+                    generateVisitJump(context, xrfContext, builder, index, chunks, stackJump, skipChunk, nextChunk);
                 }
                 else {
-                    generateVisitJump(context, xrfContext, builder, index, stackJump, nextChunk, skipChunk);
+                    generateVisitJump(context, xrfContext, builder, index, chunks, stackJump, nextChunk, skipChunk);
                 }
 
                 return;
@@ -515,7 +517,12 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
         );
     }
 
-    builder.CreateBr(stackJump);
+    if (auto knownJump = chunk.nextChunk; knownJump) {
+        builder.CreateBr(chunks[*knownJump]);
+    }
+    else {
+        builder.CreateBr(stackJump);
+    }
 }
 
 void generateChunks(llvm::LLVMContext &context, XrfContext &xrfContext, const std::vector<Chunk> &chunks) {
@@ -530,7 +537,7 @@ void generateChunks(llvm::LLVMContext &context, XrfContext &xrfContext, const st
     auto *stackJump = createStackJump(context, xrfContext, chunkStarts);
 
     for (size_t i = 0; i < chunks.size(); i++) {
-        generateCodeForChunk(context, xrfContext, chunks[i], i, chunkStarts[i], stackJump);
+        generateCodeForChunk(context, xrfContext, chunks[i], i, chunkStarts[i], chunkStarts, stackJump);
     }
 
     llvm::IRBuilder builder(xrfContext.startBlock);

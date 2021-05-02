@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "optimization.hpp"
 #include "parser.hpp"
 
 #include "CLI/CLI.hpp"
@@ -50,7 +51,8 @@ int main(int argc, char **argv) {
 
     llvm::LLVMContext context;
     auto &chunks = std::get<std::vector<xrf::Chunk>>(result);
-    auto module = generateCode(context, chunks);
+    auto optimizedChunks = xrf::optimizeChunks(chunks);
+    auto module = generateCode(context, optimizedChunks);
 
     if (outFilename.empty()) {
         outFilename = "out.ll";

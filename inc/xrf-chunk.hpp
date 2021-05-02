@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <vector>
 
 namespace xrf {
@@ -34,6 +35,9 @@ struct Chunk {
 
     // The line/column of the first command in the chunk
     int line, col;
+
+    // The next chunk to jump to, if known
+    std::optional<unsigned> nextChunk;
 };
 
 } // namespace xrf
