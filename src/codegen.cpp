@@ -435,7 +435,7 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
     llvm::IRBuilder builder(chunkBlock);
 
     for (size_t i = 0; i < chunk.commands.size(); i++) {
-        switch (chunk.commands[i]) {
+        switch (chunk.commands[i].type) {
             case CommandType::Add:
                 generateAdd(context, xrfContext, builder);
                 break;
@@ -492,10 +492,11 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 if (i == chunk.commands.size() - 1) {
                     break;
                 }
+
                 auto nextChunk = chunkFromCommand(chunk, i + 1);
                 auto skipChunk = chunkFromCommand(chunk, i + 2);
 
-                if (chunk.commands[i] == CommandType::IgnoreVisited) {
+                if (chunk.commands[i].type == CommandType::IgnoreVisited) {
                     generateVisitJump(context, xrfContext, builder, index, chunks, stackJump, skipChunk, nextChunk);
                 }
                 else {

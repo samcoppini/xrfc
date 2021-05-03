@@ -146,7 +146,7 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
     for (const auto &cmd: chunk.commands) {
         bool breakOut = false;
 
-        switch (cmd) {
+        switch (cmd.type) {
             case CommandType::Add:
                 stack.add();
                 break;
