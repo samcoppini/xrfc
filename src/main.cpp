@@ -27,10 +27,12 @@ int main(int argc, char **argv) {
 
     std::string filename;
     std::string outFilename;
+    int optimizationLevel = 0;
 
     app.add_option("file", filename, "The XRF file to compile.")
         ->required();
     app.add_option("-o,--output", outFilename, "The file to write the compiled source to.");
+    app.add_option("-O", optimizationLevel, "The level of optimization for XRF code.\n0 = none\n1 = chunk optimizations");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -50,9 +52,13 @@ int main(int argc, char **argv) {
     }
 
     llvm::LLVMContext context;
-    auto &chunks = std::get<std::vector<xrf::Chunk>>(result);
-    auto optimizedChunks = xrf::optimizeChunks(chunks);
-    auto module = generateCode(context, optimizedChunks);
+    auto chunks = std::get<std::vector<xrf::Chunk>>(result);
+
+    if (optimizationLevel > 0) {
+        chunks = xrf::optimizeChunks(chunks);
+    }
+
+    auto module = generateCode(context, chunks);
 
     if (outFilename.empty()) {
         outFilename = "out.ll";
