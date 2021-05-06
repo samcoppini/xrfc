@@ -11,6 +11,7 @@ namespace xrf {
 namespace {
 
 constexpr int STACK_SIZE = 65536;
+constexpr int STACK_MASK = 65535;
 
 struct XrfContext {
     llvm::Module *module;
@@ -145,18 +146,9 @@ void emitBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuil
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
     );
 
-    auto bottomWrapped = builder.CreateICmpEQ(
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0),
-        stackBottom
-    );
+    auto bottomWrapped = builder.CreateAnd(bottomMinusOne, STACK_MASK);
 
-    auto newBottom = builder.CreateSelect(
-        bottomWrapped,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
-        bottomMinusOne
-    );
-
-    builder.CreateStore(newBottom, xrfContext.stackBottom);
+    builder.CreateStore(bottomWrapped, xrfContext.stackBottom);
 }
 
 void emitPop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
@@ -170,22 +162,13 @@ void emitPop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
     );
 
-    auto topWrapped = builder.CreateICmpEQ(
-        stackTop,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0)
-    );
-
-    auto newTop = builder.CreateSelect(
-        topWrapped,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
-        topMinusOne
-    );
+    auto topWrapped = builder.CreateAnd(topMinusOne, STACK_MASK);
 
     auto stackPtr = builder.CreateInBoundsGEP(
         xrfContext.stack,
         {
             llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
-            newTop
+            topWrapped
         }
     );
 
@@ -196,7 +179,7 @@ void emitPop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder
 
     builder.CreateStore(newTopValue, xrfContext.topValue);
 
-    builder.CreateStore(newTop, xrfContext.stackTop);
+    builder.CreateStore(topWrapped, xrfContext.stackTop);
 }
 
 void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, llvm::Value *value) {
@@ -227,18 +210,9 @@ void emitPush(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilde
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
     );
 
-    auto topWrapped = builder.CreateICmpEQ(
-        topPlusOne,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE)
-    );
+    auto topWrapped = builder.CreateAnd(topPlusOne, STACK_MASK);
 
-    auto newStackTop = builder.CreateSelect(
-        topWrapped,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0),
-        topPlusOne
-    );
-
-    builder.CreateStore(newStackTop, xrfContext.stackTop);
+    builder.CreateStore(topWrapped, xrfContext.stackTop);
 }
 
 llvm::GlobalVariable *emitVisited(llvm::Module &module, llvm::LLVMContext &context, int chunkIdx) {
