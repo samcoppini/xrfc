@@ -68,7 +68,7 @@ class StackSimulator {
         StackSimulator(unsigned index):
             _origIndex(index),
             _maxPopped(0),
-            _hadInput(false),
+            _hadIO(false),
             _values({index})
         {}
 
@@ -104,7 +104,12 @@ class StackSimulator {
 
         void input() {
             doPush({});
-            _hadInput = true;
+            _hadIO = true;
+        }
+
+        void output() {
+            doPop();
+            _hadIO = true;
         }
 
         void pop() {
@@ -158,7 +163,7 @@ class StackSimulator {
         }
 
         bool canOptimize() const {
-            return !_hadInput &&
+            return !_hadIO &&
                    _maxPopped == 0 &&
                    allKnownValues(_values) &&
                    allKnownValues(_bottom) &&
@@ -181,7 +186,7 @@ class StackSimulator {
 
         unsigned _origIndex;
         unsigned _maxPopped;
-        bool _hadInput;
+        bool _hadIO;
         std::vector<StackValue> _bottom;
         std::vector<StackValue> _values;
 };
@@ -205,6 +210,9 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
                 break;
 
             case CommandType::Output:
+                stack.output();
+                break;
+
             case CommandType::Pop:
                 stack.pop();
                 break;
