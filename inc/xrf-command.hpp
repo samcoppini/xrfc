@@ -21,6 +21,10 @@ enum CommandType {
     Randomize,     // D
     Sub,           // E
     Nop,           // F
+
+    // Commands that get generated from optimization
+    PushValueToBottom,
+    SetTop,
 };
 
 // A struct representing a single stack-based action in XRF
@@ -29,6 +33,8 @@ struct Command {
 
     // The type of command this is
     CommandType type;
+
+    unsigned val = 0;
 };
 
 } // namespace xrf

@@ -335,6 +335,20 @@ void generatePop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     emitPop(context, xrfContext, builder);
 }
 
+void generatePushToBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, unsigned val) {
+    emitBottom(
+        context, xrfContext, builder,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), val)
+    );
+}
+
+void generateSetTop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, unsigned val) {
+    builder.CreateStore(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), val),
+        xrfContext.topValue
+    );
+}
+
 void generateSub(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto value1 = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -435,7 +449,9 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
     llvm::IRBuilder builder(chunkBlock);
 
     for (size_t i = 0; i < chunk.commands.size(); i++) {
-        switch (chunk.commands[i].type) {
+        const auto &command = chunk.commands[i];
+
+        switch (command.type) {
             case CommandType::Add:
                 generateAdd(context, xrfContext, builder);
                 break;
@@ -479,8 +495,16 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generatePop(context, xrfContext, builder);
                 break;
 
+            case CommandType::PushValueToBottom:
+                generatePushToBottom(context, xrfContext, builder, command.val);
+                break;
+
             case CommandType::Sub:
                 generateSub(context, xrfContext, builder);
+                break;
+
+            case CommandType::SetTop:
+                generateSetTop(context, xrfContext, builder, command.val);
                 break;
 
             case CommandType::Swap:

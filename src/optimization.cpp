@@ -1,5 +1,8 @@
 #include "optimization.hpp"
 
+#include <algorithm>
+#include <cassert>
+
 namespace xrf {
 
 namespace {
@@ -63,6 +66,9 @@ class StackValue {
 class StackSimulator {
     public:
         StackSimulator(unsigned index):
+            _origIndex(index),
+            _maxPopped(0),
+            _hadInput(false),
             _values({index})
         {}
 
@@ -72,6 +78,10 @@ class StackSimulator {
 
             val1.add(val2);
             doPush(val1);
+        }
+
+        void bottom() {
+            _bottom.push_back(doPop());
         }
 
         void dec() {
@@ -94,6 +104,7 @@ class StackSimulator {
 
         void input() {
             doPush({});
+            _hadInput = true;
         }
 
         void pop() {
@@ -120,7 +131,40 @@ class StackSimulator {
             return val.getValue();
         }
 
+        std::optional<std::vector<Command>> getCommands() const {
+            if (!canOptimize()) {
+                return std::nullopt;
+            }
+
+            std::vector<Command> commands;
+            for (const auto &bottomVal: _bottom) {
+                commands.emplace_back(CommandType::PushValueToBottom);
+                commands.back().val = bottomVal.getKnownValue();
+            }
+
+            if (_origIndex != _values[0].getKnownValue()) {
+                commands.emplace_back(CommandType::SetTop);
+                commands.back().val = _values[0].getKnownValue();
+            }
+
+            return commands;
+        }
+
     private:
+        static bool allKnownValues(const std::vector<StackValue> &values) {
+            return std::all_of(values.begin(), values.end(), [] (StackValue val) {
+                return val.hasKnownValue();
+            });
+        }
+
+        bool canOptimize() const {
+            return !_hadInput &&
+                   _maxPopped == 0 &&
+                   allKnownValues(_values) &&
+                   allKnownValues(_bottom) &&
+                   _values.size() == 1;
+        }
+
         void doPush(StackValue value) {
             _values.emplace_back(value);
         }
@@ -131,9 +175,14 @@ class StackSimulator {
                 _values.pop_back();
                 return value;
             }
+            _maxPopped++;
             return {};
         }
 
+        unsigned _origIndex;
+        unsigned _maxPopped;
+        bool _hadInput;
+        std::vector<StackValue> _bottom;
         std::vector<StackValue> _values;
 };
 
@@ -152,6 +201,9 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
                 break;
 
             case CommandType::Bottom:
+                stack.bottom();
+                break;
+
             case CommandType::Output:
             case CommandType::Pop:
                 stack.pop();
@@ -194,6 +246,11 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
             case CommandType::IgnoreVisited:
                 canOptimize = false;
                 break;
+
+            case CommandType::PushValueToBottom:
+            case CommandType::SetTop:
+                assert(false);
+                break;
         }
 
         if (breakOut || !canOptimize) {
@@ -204,6 +261,10 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
     if (canOptimize) {
         if (auto stackTop = stack.getStackTop(); stackTop) {
             optimized.nextChunk = *stackTop;
+        }
+
+        if (auto optimizedCommands = stack.getCommands(); optimizedCommands) {
+            optimized.commands = *optimizedCommands;
         }
     }
 
