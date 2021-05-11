@@ -1,5 +1,9 @@
 # XRFC
 XRFC is a work-in-progress llvm-based compiler for [XRF](https://esolangs.org/wiki/XRF).
+XRF is an esoteric programming language based on manipulating a stack/queue
+(a quack?), and having to deal with the illogical flow control, which can jump
+to any part of the program at any time, dependent on the top value of the
+stack every few instructions that are implemented.
 
 ## How to use
 In order to build you will need LLVM >= 10, a C++17 compiler, Meson, and Ninja.
@@ -26,3 +30,8 @@ Hello, World!
 * Implement `D` instruction to randomize the stack.
 * Better optimization of generated LLVM code.
 * Add more tests, especially for the optimization/generation code.
+* Make it so the compiler can optionally emit checks for undefined behavior.
+  For instance, trying to pop the stack when it's empty, trying to jump to a
+  code chunk that doesn't exist, checking for stack overflow.
+* Implement compiler warnings where possible. For instance, if the optimizer
+  can tell that a chunk will always try to jump to a nonexistent chunk.
