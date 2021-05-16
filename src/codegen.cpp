@@ -466,15 +466,9 @@ void generateSwap(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBu
         llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
     );
 
-    auto topWrapped = builder.CreateICmpEQ(
-        stackTop,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 0)
-    );
-
-    auto stack2ndIndex = builder.CreateSelect(
-        topWrapped,
-        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_SIZE - 1),
-        topMinusOne
+    auto stack2ndIndex = builder.CreateAnd(
+        topMinusOne,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), STACK_MASK)
     );
 
     auto stackIndex = builder.CreateInBoundsGEP(
