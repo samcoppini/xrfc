@@ -151,6 +151,28 @@ void emitBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuil
     builder.CreateStore(bottomWrapped, xrfContext.stackBottom);
 }
 
+llvm::Value *emitGet2ndValue(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto topIndex = builder.CreateLoad(
+        llvm::IntegerType::getInt64Ty(context),
+        xrfContext.stackTop
+    );
+
+    auto topMinusOne = builder.CreateSub(
+        topIndex,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto secondWrapped = builder.CreateAnd(topMinusOne, STACK_MASK);
+
+    return builder.CreateInBoundsGEP(
+        xrfContext.stack,
+        {
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+            secondWrapped
+        }
+    );
+}
+
 void emitPop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto stackTop = builder.CreateLoad(
         llvm::IntegerType::getInt64Ty(context),
@@ -249,6 +271,22 @@ void generateAdd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     builder.CreateStore(sum, xrfContext.topValue);
 }
 
+void generateAdd2nd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, int diff) {
+    auto secondPtr = emitGet2ndValue(context, xrfContext, builder);
+
+    auto secondValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        secondPtr
+    );
+
+    auto secondAdded = builder.CreateAdd(
+        secondValue,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), diff)
+    );
+
+    builder.CreateStore(secondAdded, secondPtr);
+}
+
 void generateBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
     auto topValue = builder.CreateLoad(
         llvm::IntegerType::getInt32Ty(context),
@@ -292,6 +330,22 @@ void generateInput(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRB
     );
 
     emitPush(context, xrfContext, builder, correctedChar);
+}
+
+void generateMultiply2nd(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, int mul) {
+    auto secondPtr = emitGet2ndValue(context, xrfContext, builder);
+
+    auto secondValue = builder.CreateLoad(
+        llvm::IntegerType::getInt32Ty(context),
+        secondPtr
+    );
+
+    auto secondMultiplied = builder.CreateNUWMul(
+        secondValue,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), mul)
+    );
+
+    builder.CreateStore(secondMultiplied, secondPtr);
 }
 
 void generateOutput(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
@@ -430,6 +484,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generateAdd(context, xrfContext, builder);
                 break;
 
+            case CommandType::AddToSecond:
+                generateAdd2nd(context, xrfContext, builder, command.val);
+                break;
+
             case CommandType::Bottom:
                 generateBottom(context, xrfContext, builder);
                 break;
@@ -461,6 +519,10 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 i = chunk.commands.size();
                 break;
 
+            case CommandType::MultiplySecond:
+                generateMultiply2nd(context, xrfContext, builder, command.val);
+                break;
+
             case CommandType::Output:
                 generateOutput(context, xrfContext, builder);
                 break;
@@ -473,12 +535,12 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generatePushToBottom(context, xrfContext, builder, command.val);
                 break;
 
-            case CommandType::Sub:
-                generateSub(context, xrfContext, builder);
-                break;
-
             case CommandType::SetTop:
                 generateSetTop(context, xrfContext, builder, command.val);
+                break;
+
+            case CommandType::Sub:
+                generateSub(context, xrfContext, builder);
                 break;
 
             case CommandType::Swap:

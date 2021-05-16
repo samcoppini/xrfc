@@ -9,17 +9,43 @@ namespace {
 
 class StackValue {
     public:
-        StackValue(unsigned val):
+        StackValue(unsigned index, unsigned val):
+            _index(index),
             _value(val)
         {}
+
+        static StackValue fromIndex(unsigned index) {
+            StackValue value;
+            value._index = index;
+            return value;
+        }
+
+        static StackValue fromValue(unsigned value) {
+            StackValue stackValue;
+            stackValue._value = value;
+            return stackValue;
+        }
 
         StackValue() = default;
 
         void add(const StackValue &value) {
-            if (hasKnownValue() && value.hasKnownValue()) {
-                *_value += value.getKnownValue();
-                return;
+            if (hasKnownValue()) {
+                if (value.hasKnownValue()) {
+                    *_value += value.getKnownValue();
+                    return;
+                }
             }
+            else if (hasKnownIndex()) {
+                if (value.hasKnownIndex() && value.getIndex() == getIndex()) {
+                    _knownMultiple += value._knownMultiple;
+                    return;
+                }
+                else if (value.hasKnownValue()) {
+                    _knownChange += value.getKnownValue();
+                    return;
+                }
+            }
+            _index = std::nullopt;
             _value = std::nullopt;
         }
 
@@ -29,6 +55,7 @@ class StackValue {
                 return;
             }
             _value = std::nullopt;
+            _knownChange--;
         }
 
         void sub(const StackValue &value) {
@@ -44,6 +71,7 @@ class StackValue {
                 }
                 return;
             }
+            _index = std::nullopt;
             _value = std::nullopt;
         }
 
@@ -55,12 +83,31 @@ class StackValue {
             return *_value;
         }
 
+        bool hasKnownIndex() const {
+            return _index.has_value();
+        }
+
+        unsigned getIndex() const {
+            return *_index;
+        }
+
         std::optional<unsigned> getValue() const {
             return _value;
         }
 
+        int getChange() const {
+            return _knownChange;
+        }
+
+        unsigned getMultiple() const {
+            return _knownMultiple;
+        }
+
     private:
+        std::optional<unsigned> _index;
         std::optional<unsigned> _value;
+        int _knownChange = 0;
+        unsigned _knownMultiple = 1;
 };
 
 class StackSimulator {
@@ -69,7 +116,7 @@ class StackSimulator {
             _origIndex(index),
             _maxPopped(0),
             _hadIO(false),
-            _values({index})
+            _values({{0, index}})
         {}
 
         void add() {
@@ -98,7 +145,7 @@ class StackSimulator {
 
         void inc() {
             auto val = doPop();
-            val.add(1);
+            val.add(StackValue::fromValue(1));
             doPush(val);
         }
 
@@ -143,13 +190,22 @@ class StackSimulator {
 
             std::vector<Command> commands;
             for (const auto &bottomVal: _bottom) {
-                commands.emplace_back(CommandType::PushValueToBottom);
-                commands.back().val = bottomVal.getKnownValue();
+                commands.emplace_back(CommandType::PushValueToBottom, bottomVal.getKnownValue());
             }
 
-            if (_origIndex != _values[0].getKnownValue()) {
+            if (_origIndex != _values.back().getKnownValue()) {
                 commands.emplace_back(CommandType::SetTop);
-                commands.back().val = _values[0].getKnownValue();
+                commands.back().val = _values.back().getKnownValue();
+            }
+
+            if (_values.size() > 1) {
+                auto secondValue = _values[0];
+                if (secondValue.getMultiple() > 1) {
+                    commands.emplace_back(CommandType::MultiplySecond, secondValue.getMultiple());
+                }
+                else if (secondValue.getChange() != 0) {
+                    commands.emplace_back(CommandType::AddToSecond, secondValue.getChange());
+                }
             }
 
             return commands;
@@ -164,10 +220,12 @@ class StackSimulator {
 
         bool canOptimize() const {
             return !_hadIO &&
-                   _maxPopped == 0 &&
-                   allKnownValues(_values) &&
+                   _maxPopped == _values.size() - 1 &&
                    allKnownValues(_bottom) &&
-                   _values.size() == 1;
+                   _values.size() <= 2 &&
+                   _values.size() >= 1 &&
+                   _values.back().hasKnownValue() &&
+                   (_values.size() == 1 || (_values[0].hasKnownIndex() && _values[0].getIndex() == 1));
         }
 
         void doPush(StackValue value) {
@@ -181,7 +239,7 @@ class StackSimulator {
                 return value;
             }
             _maxPopped++;
-            return {};
+            return StackValue::fromIndex(_maxPopped);
         }
 
         unsigned _origIndex;
@@ -255,6 +313,8 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
                 canOptimize = false;
                 break;
 
+            case CommandType::AddToSecond:
+            case CommandType::MultiplySecond:
             case CommandType::PushValueToBottom:
             case CommandType::SetTop:
                 assert(false);

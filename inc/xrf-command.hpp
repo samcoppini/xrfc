@@ -23,6 +23,8 @@ enum CommandType {
     Nop,           // F
 
     // Commands that get generated from optimization
+    AddToSecond,
+    MultiplySecond,
     PushValueToBottom,
     SetTop,
 };
@@ -31,10 +33,13 @@ enum CommandType {
 struct Command {
     Command(CommandType type): type(type) {}
 
+    Command(CommandType type, int val): type(type), val(val) {}
+
     // The type of command this is
     CommandType type;
 
-    unsigned val = 0;
+    // For optimized commands, an additional parameter for the command
+    int val = 0;
 };
 
 } // namespace xrf
