@@ -200,12 +200,23 @@ class StackSimulator {
 
             if (_values.size() > 1) {
                 auto secondValue = _values[0];
-                if (secondValue.getMultiple() > 1) {
+                if (secondValue.hasKnownValue()) {
+                    if (_maxPopped == 0) {
+                        commands.emplace_back(CommandType::PushSecondValue, secondValue.getKnownValue());
+                    }
+                    else {
+                        commands.emplace_back(CommandType::SetSecondValue, secondValue.getKnownValue());
+                    }
+                }
+                else if (secondValue.getMultiple() > 1) {
                     commands.emplace_back(CommandType::MultiplySecond, secondValue.getMultiple());
                 }
                 else if (secondValue.getChange() != 0) {
                     commands.emplace_back(CommandType::AddToSecond, secondValue.getChange());
                 }
+            }
+            else if (_maxPopped == 1) {
+                commands.emplace_back(CommandType::PopSecondValue);
             }
 
             return commands;
@@ -220,12 +231,13 @@ class StackSimulator {
 
         bool canOptimize() const {
             return !_hadIO &&
-                   _maxPopped == _values.size() - 1 &&
+                   _maxPopped < 2 &&
                    allKnownValues(_bottom) &&
                    _values.size() <= 2 &&
                    _values.size() >= 1 &&
                    _values.back().hasKnownValue() &&
-                   (_values.size() == 1 || (_values[0].hasKnownIndex() && _values[0].getIndex() == 1));
+                   (_values.size() == 1 || _values[0].hasKnownValue()
+                    || (_values[0].hasKnownIndex() && _values[0].getIndex() == 1));
         }
 
         void doPush(StackValue value) {
@@ -315,7 +327,10 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
 
             case CommandType::AddToSecond:
             case CommandType::MultiplySecond:
+            case CommandType::PopSecondValue:
+            case CommandType::PushSecondValue:
             case CommandType::PushValueToBottom:
+            case CommandType::SetSecondValue:
             case CommandType::SetTop:
                 assert(false);
                 break;

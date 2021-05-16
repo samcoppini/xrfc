@@ -3,7 +3,7 @@
 namespace xrf {
 
 // The different commands that XRF has
-enum CommandType {
+enum class CommandType {
     // The commands built into XRF
     Input,         // 0
     Output,        // 1
@@ -22,10 +22,29 @@ enum CommandType {
     Sub,           // E
     Nop,           // F
 
-    // Commands that get generated from optimization
+    // All of the following are commands that don't map directly to specific
+    // XRF commands, and are generated as a result of optimization
+
+    // Adds a value to the secondmost value on the stack
     AddToSecond,
+
+    // Multiplies the second value on the stack by a given value
     MultiplySecond,
+
+    // Removes the second value from the stack
+    PopSecondValue,
+
+    // Inserts a value below the top of the stack
+    PushSecondValue,
+
+    // Pushes a known value to the bottom of the stack, without having to push
+    // it to the top of the stack first
     PushValueToBottom,
+
+    // Sets the second value of the stack
+    SetSecondValue,
+
+    // Sets the top value of the stack to a known value
     SetTop,
 };
 

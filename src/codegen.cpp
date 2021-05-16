@@ -363,10 +363,64 @@ void generatePop(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBui
     emitPop(context, xrfContext, builder);
 }
 
+void generatePopSecond(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder) {
+    auto topIndex = builder.CreateLoad(
+        llvm::IntegerType::getInt64Ty(context),
+        xrfContext.stackTop
+    );
+
+    auto topMinusOne = builder.CreateSub(
+        topIndex,
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1)
+    );
+
+    auto topWrapped = builder.CreateAnd(topMinusOne, STACK_MASK);
+
+    builder.CreateStore(topWrapped, xrfContext.stackTop);
+}
+
+void generatePushSecondValue(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, unsigned val) {
+    auto topIndex = builder.CreateLoad(
+        llvm::IntegerType::getInt64Ty(context),
+        xrfContext.stackTop
+    );
+
+    auto stackPtr = builder.CreateInBoundsGEP(
+        xrfContext.stack,
+        {
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+            topIndex
+        }
+    );
+
+    builder.CreateStore(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+        stackPtr
+    );
+
+    auto topPlusOne = builder.CreateAdd(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt64Ty(context), 1),
+        topIndex
+    );
+
+    auto secondWrapped = builder.CreateAnd(topPlusOne, STACK_MASK);
+
+    builder.CreateStore(secondWrapped, xrfContext.stackTop);
+}
+
 void generatePushToBottom(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, unsigned val) {
     emitBottom(
         context, xrfContext, builder,
         llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), val)
+    );
+}
+
+void generateSetSecondValue(llvm::LLVMContext &context, XrfContext &xrfContext, llvm::IRBuilder<> &builder, unsigned val) {
+    auto secondPtr = emitGet2ndValue(context, xrfContext, builder);
+
+    builder.CreateStore(
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), val),
+        secondPtr
     );
 }
 
@@ -531,8 +585,20 @@ void generateCodeForChunk(llvm::LLVMContext &context, XrfContext &xrfContext, co
                 generatePop(context, xrfContext, builder);
                 break;
 
+            case CommandType::PopSecondValue:
+                generatePopSecond(context, xrfContext, builder);
+                break;
+
+            case CommandType::PushSecondValue:
+                generatePushSecondValue(context, xrfContext, builder, command.val);
+                break;
+
             case CommandType::PushValueToBottom:
                 generatePushToBottom(context, xrfContext, builder, command.val);
+                break;
+
+            case CommandType::SetSecondValue:
+                generateSetSecondValue(context, xrfContext, builder, command.val);
                 break;
 
             case CommandType::SetTop:
