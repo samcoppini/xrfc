@@ -1,7 +1,9 @@
 #include "optimization.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
+#include <unordered_set>
 
 namespace xrf {
 
@@ -354,6 +356,68 @@ Chunk optimizeChunk(const Chunk &chunk, unsigned index) {
     return optimized;
 }
 
+template <size_t N>
+bool chunkOnlyHas(const Chunk &chunk, const std::array<CommandType, N> &commands) {
+    return std::all_of(chunk.commands.begin(), chunk.commands.end(), [&] (Command cmd) {
+        return std::find(commands.begin(), commands.end(), cmd.type) != commands.end();
+    });
+}
+
+void condenseStackTops(std::vector<Command> &commands) {
+    bool foundStackTop = false;
+
+    for (auto it = commands.rbegin(); it != commands.rend(); ++it) {
+        if (it->type == CommandType::SetTop) {
+            if (foundStackTop) {
+                commands.erase(std::next(it).base());
+            }
+            foundStackTop = true;
+        }
+    }
+}
+
+void handleSecondVal(std::vector<Command> &commands) {
+
+}
+
+Chunk optimizeChunkInProgram(const std::vector<Chunk> &chunks, size_t index) {
+    auto &originalChunk = chunks[index];
+    Chunk optimizedChunk;
+
+    auto toOptimize = chunks[index];
+
+    std::unordered_set<size_t> visited;
+
+    while (chunkOnlyHas(toOptimize, std::array{CommandType::AddToSecond,
+                                               CommandType::MultiplySecond,
+                                               CommandType::PushSecondValue,
+                                               CommandType::SetSecondValue,
+                                               CommandType::SetTop}))
+    {
+        if (visited.count(index)) {
+            // We're in a infinite loop, don't bother optimizing it
+            return originalChunk;
+        }
+        visited.insert(index);
+
+        optimizedChunk.commands.insert(optimizedChunk.commands.end(),
+                                       toOptimize.commands.begin(),
+                                       toOptimize.commands.end());
+
+        optimizedChunk.nextChunk = toOptimize.nextChunk;
+        index = *optimizedChunk.nextChunk;
+        toOptimize = chunks[index];
+    }
+
+    if (optimizedChunk.commands.empty()) {
+        return originalChunk;
+    }
+
+    condenseStackTops(optimizedChunk.commands);
+
+    return optimizedChunk;
+}
+
 } // anonymous namespace
 
 std::vector<Chunk> optimizeChunks(const std::vector<Chunk> &chunks) {
@@ -364,6 +428,18 @@ std::vector<Chunk> optimizeChunks(const std::vector<Chunk> &chunks) {
     }
 
     return optimizedChunks;
+}
+
+std::vector<Chunk> optimizeProgram(const std::vector<Chunk> &chunks) {
+    std::vector<Chunk> optimizedProgram;
+
+    optimizedProgram.reserve(chunks.size());
+
+    for (size_t i = 0; i < chunks.size(); i++) {
+        optimizedProgram.emplace_back(optimizeChunkInProgram(chunks, i));
+    }
+
+    return optimizedProgram;
 }
 
 } // namespace xrf

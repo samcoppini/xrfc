@@ -32,7 +32,8 @@ int main(int argc, char **argv) {
     app.add_option("file", filename, "The XRF file to compile.")
         ->required();
     app.add_option("-o,--output", outFilename, "The file to write the compiled source to.");
-    app.add_option("-O", optimizationLevel, "The level of optimization for XRF code.\n0 = none\n1 = chunk optimizations");
+    app.add_option("-O", optimizationLevel,
+        "The level of optimization for XRF code.\n0 = none\n1 = chunk-level optimizations\n2 = program-level optimizations");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -56,6 +57,10 @@ int main(int argc, char **argv) {
 
     if (optimizationLevel > 0) {
         chunks = xrf::optimizeChunks(chunks);
+
+        if (optimizationLevel > 1) {
+            chunks = xrf::optimizeProgram(chunks);
+        }
     }
 
     auto module = generateCode(context, chunks);
