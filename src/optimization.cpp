@@ -377,8 +377,81 @@ void condenseStackTops(std::vector<Command> &commands) {
 }
 
 void handleSecondVal(std::vector<Command> &commands) {
+    bool pushVal = false;
+    std::optional<int> knownVal;
+    unsigned multiply = 1;
+    int addAmount = 0;
 
+    for (auto it = commands.begin(); it != commands.end(); ) {
+        switch (it->type) {
+            case CommandType::PushSecondValue:
+                pushVal = true;
+                knownVal = it->val;
+                break;
+
+            case CommandType::SetSecondValue:
+                knownVal = it->val;
+                break;
+
+            case CommandType::AddToSecond:
+                if (knownVal) {
+                    *knownVal += it->val;
+                }
+                else {
+                    addAmount += it->val;
+                }
+                break;
+
+            case CommandType::MultiplySecond:
+                if (knownVal) {
+                    *knownVal *= it->val;
+                }
+                else {
+                    multiply *= it->val;
+                    addAmount *= it->val;
+                }
+                break;
+
+            default:
+                ++it;
+                continue;
+        }
+
+        it = commands.erase(it);
+    }
+
+    if (knownVal) {
+        if (pushVal) {
+            commands.emplace_back(CommandType::PushSecondValue, *knownVal);
+        }
+        else {
+            commands.emplace_back(CommandType::SetSecondValue, *knownVal);
+        }
+    }
+    else {
+        if (multiply > 1) {
+            commands.emplace_back(CommandType::MultiplySecond, multiply);
+        }
+        if (addAmount != 0) {
+            commands.emplace_back(CommandType::AddToSecond, addAmount);
+        }
+    }
 }
+
+constexpr auto BEGIN_CHUNK_OPT_COMMANDS = std::array{
+    CommandType::AddToSecond,
+    CommandType::MultiplySecond,
+    CommandType::PushSecondValue,
+    CommandType::SetSecondValue,
+    CommandType::SetTop,
+};
+
+constexpr auto CONTINUE_CHUNK_OPT_COMMANDS = std::array{
+    CommandType::AddToSecond,
+    CommandType::MultiplySecond,
+    CommandType::SetSecondValue,
+    CommandType::SetTop,
+};
 
 Chunk optimizeChunkInProgram(const std::vector<Chunk> &chunks, size_t index) {
     auto &originalChunk = chunks[index];
@@ -388,25 +461,24 @@ Chunk optimizeChunkInProgram(const std::vector<Chunk> &chunks, size_t index) {
 
     std::unordered_set<size_t> visited;
 
-    while (chunkOnlyHas(toOptimize, std::array{CommandType::AddToSecond,
-                                               CommandType::MultiplySecond,
-                                               CommandType::PushSecondValue,
-                                               CommandType::SetSecondValue,
-                                               CommandType::SetTop}))
-    {
-        if (visited.count(index)) {
-            // We're in a infinite loop, don't bother optimizing it
-            return originalChunk;
+    if (chunkOnlyHas(toOptimize, BEGIN_CHUNK_OPT_COMMANDS)) {
+        do
+        {
+            if (visited.count(index)) {
+                // We're in a infinite loop, don't bother optimizing it
+                return originalChunk;
+            }
+            visited.insert(index);
+
+            optimizedChunk.commands.insert(optimizedChunk.commands.end(),
+                                           toOptimize.commands.begin(),
+                                           toOptimize.commands.end());
+
+            optimizedChunk.nextChunk = toOptimize.nextChunk;
+            index = *optimizedChunk.nextChunk;
+            toOptimize = chunks[index];
         }
-        visited.insert(index);
-
-        optimizedChunk.commands.insert(optimizedChunk.commands.end(),
-                                       toOptimize.commands.begin(),
-                                       toOptimize.commands.end());
-
-        optimizedChunk.nextChunk = toOptimize.nextChunk;
-        index = *optimizedChunk.nextChunk;
-        toOptimize = chunks[index];
+        while (chunkOnlyHas(toOptimize, CONTINUE_CHUNK_OPT_COMMANDS));
     }
 
     if (optimizedChunk.commands.empty()) {
@@ -414,6 +486,7 @@ Chunk optimizeChunkInProgram(const std::vector<Chunk> &chunks, size_t index) {
     }
 
     condenseStackTops(optimizedChunk.commands);
+    handleSecondVal(optimizedChunk.commands);
 
     return optimizedChunk;
 }
