@@ -52,9 +52,7 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    llvm::LLVMContext context;
     auto chunks = std::get<std::vector<xrf::Chunk>>(result);
-
     if (optimizationLevel > 0) {
         chunks = xrf::optimizeChunks(chunks);
 
@@ -63,6 +61,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    llvm::LLVMContext context;
     auto module = generateCode(context, chunks);
 
     if (outFilename.empty()) {
