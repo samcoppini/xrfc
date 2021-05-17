@@ -394,7 +394,7 @@ void generatePushSecondValue(llvm::LLVMContext &context, XrfContext &xrfContext,
     );
 
     builder.CreateStore(
-        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), 0),
+        llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context), val),
         stackPtr
     );
 
