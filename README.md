@@ -28,7 +28,6 @@ Hello, World!
 
 ## Todo:
 * Implement `D` instruction to randomize the stack.
-* Better optimization of generated LLVM code.
 * Add more tests, especially for the optimization/generation code.
 * Make it so the compiler can optionally emit checks for undefined behavior.
   For instance, trying to pop the stack when it's empty, trying to jump to a
