@@ -28,14 +28,25 @@ int main(int argc, char **argv) {
     std::string filename;
     std::string outFilename;
     int optimizationLevel = 0;
+    bool printVersion = false;
 
-    app.add_option("file", filename, "The XRF file to compile.")
-        ->required();
+    app.add_option("file", filename, "The XRF file to compile.");
     app.add_option("-o,--output", outFilename, "The file to write the compiled source to.");
     app.add_option("-O", optimizationLevel,
         "The level of optimization for XRF code.\n0 = none\n1 = chunk-level optimizations\n2 = program-level optimizations");
+    app.add_flag("--version", printVersion, "Prints the version information and exit.");
 
     CLI11_PARSE(app, argc, argv);
+
+    if (printVersion) {
+        std::cout << "xrfc " << XRFC_VERSION << '\n';
+        return 0;
+    }
+
+    if (filename.empty()) {
+        std::cerr << "Please provide an XRF file to compile.\n";
+        return 1;
+    }
 
     std::ifstream file{filename};
 

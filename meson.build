@@ -37,6 +37,9 @@ xrf_dep = declare_dependency(
 xrfc = executable(
     'xrfc',
     'src/main.cpp',
+    cpp_args: [
+        '-DXRFC_VERSION="@0@"'.format(meson.project_version()),
+    ],
     dependencies: [
         cli11_dep,
         xrf_dep,
