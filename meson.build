@@ -24,6 +24,8 @@ xrf_lib = static_library(
     'src/file-reader.cpp',
     'src/optimization.cpp',
     'src/parser.cpp',
+    'src/stack-simulator.cpp',
+    'src/stack-value.cpp',
     dependencies: llvm_dep,
     include_directories: xrf_inc,
 )

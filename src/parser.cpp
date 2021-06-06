@@ -6,6 +6,20 @@ namespace xrf {
 
 namespace {
 
+/**
+ * @brief Attempts to parse a XRF chunk, which will result in either a new,
+ * valid, chunk being added to the passed-in list of chunks, or new error
+ * messages being added to the list of errors
+ *
+ * @param file
+ *     The file reader to read the next characters of the chunk from
+ * @param chunkChar
+ *     The first character in the chunk that was read already
+ * @param chunks
+ *     The existing list of chunks, which may be added to
+ * @param errors
+ *     The existing list of parser errors, which may be added to
+ */
 void parseChunk(FileReader &file, char chunkChar, std::vector<Chunk> &chunks, ParserErrorList &errors) {
     Chunk chunk;
     chunk.line = file.curLine();

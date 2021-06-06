@@ -8,10 +8,18 @@
 #include <fstream>
 #include <iostream>
 
+/**
+ * @brief Outputs a list of parser errors to stderr.
+ *
+ * @param errors
+ *     The list of errors to print out
+ */
 void printParserErrors(const xrf::ParserErrorList &errors) {
     int numErrors = 0;
 
     for (auto &error: errors) {
+        // If we've gotten more than 100 errors, we were most likely given some
+        // random non-XRF file, so further errors will likely not help anybody
         if (numErrors++ == 100) {
             std::cerr << "Too many errors, quitting." << "\n";
             return;
